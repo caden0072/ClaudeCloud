@@ -98,6 +98,20 @@ class ClassifyTest(unittest.TestCase):
         p = {"types": ["home_improvement_store"], "primaryType": "home_improvement_store"}
         self.assertEqual(classify("Lowe's (Upland) fitness studio", p)[0], "B")
 
+    def test_exclusions(self):
+        gym = {"types": ["gym", "health"], "primaryType": "gym"}
+        self.assertEqual(classify("Fitness Court at Central Park", gym)[0], "")
+        self.assertEqual(classify("On Cloud Nine Day Spa", {"types": ["spa", "yoga_studio"], "primaryType": "spa"})[0], "")
+        self.assertEqual(classify("New Dawn Sober Living", {"types": ["service"], "primaryType": "service"})[0], "")
+        # big gyms carry a secondary "spa" type for their saunas
+        self.assertEqual(classify("Planet Fitness", {"types": ["gym", "spa"], "primaryType": "gym"})[0], "A")
+
+    def test_name_only_match_needs_review_except_civic(self):
+        office = {"types": ["service"], "primaryType": "service"}
+        self.assertEqual(classify("Sunrise Yoga Collective", office)[0], "Review")
+        self.assertEqual(classify("Upland Rotary Club", office)[:2], ("A", "Civic club"))
+        self.assertEqual(classify("Grace Church", {"types": ["church"], "primaryType": "church"})[0], "A")
+
     def test_address_only_is_no_fit(self):
         self.assertTrue(classify("Some Home", {"types": ["premise"], "primaryType": "premise"})[2])
 

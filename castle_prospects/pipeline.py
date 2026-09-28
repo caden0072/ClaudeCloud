@@ -19,7 +19,7 @@ from collections import Counter
 from datetime import date
 
 from . import config
-from .scoring import classify, clean_name, digits10, name_similarity, search_query
+from .scoring import classify, clean_name, digits10, name_similarity, priority, review_note, search_query
 
 HISTORY_COLS = [
     "type", "status", "owner", "attempts", "first_contacted", "last_contacted", "last_outcome",
@@ -219,8 +219,10 @@ def cmd_discover(args):
     candidates, skipped = [], Counter()
     for p in found.values():
         name = (p.get("displayName") or {}).get("text", "")
-        tier, category, _ = classify(name, p)
-        if tier != "A":
+        tier, category, nofit = classify(name, p)
+        if nofit:
+            skipped[nofit] += 1
+        elif tier not in ("A", "Review"):
             skipped["not Tier A"] += 1
         elif p.get("businessStatus") != "OPERATIONAL":
             skipped["closed"] += 1
@@ -231,7 +233,7 @@ def cmd_discover(args):
         elif dnc.match(name=name, place=p):
             skipped["on do-not-contact list"] += 1
         else:
-            candidates.append({"place": p, "category": category, "drive_minutes": None})
+            candidates.append({"place": p, "tier": tier, "category": category, "drive_minutes": None})
     drives = client.drive_minutes(origin, [latlng(c["place"]) for c in candidates])
     new = []
     for c, d in zip(candidates, drives):
@@ -243,7 +245,7 @@ def cmd_discover(args):
     for c in new:
         c["drive_source"] = client.drive_source
     save_json("discovered.json", new)
-    print(f"New Tier A organizations: {len(new)}  Skipped: {dict(skipped)}  API calls: {client.calls}")
+    print(f"New Tier A / needs-review organizations: {len(new)}  Skipped: {dict(skipped)}  API calls: {client.calls}")
 
 
 # --- step: emails --------------------------------------------------------------
@@ -316,7 +318,10 @@ def assemble():
             seen_ids[place["id"]] = rec["business"]
         row.update({k: rec.get(k, "") for k in HISTORY_COLS})
         tier, cat, nofit = classify(rec["business"], place)
-        row["tier"], row["tier_category"] = tier, cat if tier == "A" else ("Employer (staff on-site)" if tier == "B" else "")
+        row["tier"], row["tier_category"] = tier, cat if tier in ("A", "Review") else ("Employer (staff on-site)" if tier == "B" else "")
+        if tier == "Review":
+            note = review_note(rec["business"], place, cat)
+            row["verify_note"] = f"{row['verify_note']}; {note}" if row["verify_note"] else note
 
         hit = dnc.match(phone=rec["phone"], place=place)
         if hit:
@@ -340,9 +345,11 @@ def assemble():
         place = d["place"]
         row = {"business": (place.get("displayName") or {}).get("text", ""), "source": f"new {today}"}
         row.update(place_fields(place))
-        row.update({"tier": "A", "tier_category": d["category"], "drive_minutes": d["drive_minutes"],
+        tier = d.get("tier", "A")
+        note = review_note(row["business"], place, d["category"]) if tier == "Review" else ""
+        row.update({"tier": tier, "tier_category": d["category"], "drive_minutes": d["drive_minutes"],
                     "drive_time_source": d.get("drive_source", "google"), "email": "", "email_source": "", "verified_by": "discovery search",
-                    "phone_on_file": "", "verify_note": ""})
+                    "phone_on_file": "", "verify_note": note})
         row.update({k: "" for k in HISTORY_COLS})
         row.update({"status": "prospect", "attempts": "0", "last_outcome": "Never contacted", "events_booked": "0"})
         contacts.append(row)
@@ -368,12 +375,16 @@ def assemble():
             note = "Drive time is an estimate near the 15 min cutoff — check on Google Maps"
             r["verify_note"] = f"{r['verify_note']}; {note}" if r.get("verify_note") else note
 
-    contacts.sort(key=lambda r: (r["tier"], r.get("drive_minutes") or 99, r["business"].lower()))
+    for c in contacts:
+        c["priority"] = priority(c["tier_category"]) if c["tier"] in ("A", "Review") else ""
+    tier_order = {"A": 0, "Review": 1, "B": 2}
+    contacts.sort(key=lambda r: (tier_order.get(r["tier"], 3), r["priority"] or 9,
+                                 r.get("drive_minutes") or 99, r["business"].lower()))
     return contacts, excluded
 
 
 CONTACT_COLS = [
-    "tier", "tier_category", "business", "google_name", "category", "address", "city", "phone",
+    "tier", "priority", "tier_category", "business", "google_name", "category", "address", "city", "phone",
     "email", "website", "drive_minutes", "drive_time_source", "status", "owner", "last_contacted", "last_outcome",
     "next_step_due", "active_cadence", "attempts", "first_contacted", "last_worked_by",
     "gatekeeper", "decision_maker", "info_sent_to", "last_note", "events_booked",
@@ -445,7 +456,7 @@ def write_workbook(contacts, excluded, path):
 
 def summarize(contacts, excluded):
     tiers = Counter(c["tier"] for c in contacts)
-    lines = ["CONTACTS", f"  Tier A: {tiers['A']}", f"  Tier B: {tiers['B']}",
+    lines = ["CONTACTS", f"  Tier A: {tiers['A']}", f"  Needs review: {tiers['Review']}", f"  Tier B: {tiers['B']}",
              f"  Total:  {len(contacts)}"]
     a_cats = Counter(c["tier_category"] for c in contacts if c["tier"] == "A")
     lines += [f"    A · {k}: {v}" for k, v in a_cats.most_common()]

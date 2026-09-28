@@ -41,9 +41,10 @@ The output goes to `output/castle-outreach-list-<date>.xlsx`, with the tier and 
 
 | Result | Rule |
 |---|---|
-| Tier A | Gyms, CrossFit, yoga, Pilates, churches, civic clubs, senior communities. Decided from Google place types first, then the business name. The legacy CSV `type` column is ignored because it is unreliable. |
+| Tier A | Gyms, CrossFit, yoga, Pilates, churches, civic clubs, senior communities, matched on Google place type. Civic clubs and chambers also count on name alone, since Google has no type for them. Ranked by `priority`: 1 gyms/CrossFit/yoga/Pilates, 2 churches, 3 civic clubs and chambers, 4 the rest; then by drive time. |
+| Needs review | Any other Tier A match made on the business name alone. `verify_note` says why. The legacy CSV `type` column is ignored because it is unreliable. |
 | Tier B | Any other open business with a physical location, meaning an employer with staff on-site. |
-| Excluded | On the do-not-contact list, closed on Google, over 15 min drive (traffic-unaware; see below), no audience fit (address only, parking, storage, apartments and similar), or not found on Google (flagged for a manual check). |
+| Excluded | On the do-not-contact list, outdoor fitness courts, day spas, sober-living or recovery homes, closed on Google, over 15 min drive (traffic-unaware; see below), no audience fit (address only, parking, storage, apartments and similar), or not found on Google (flagged for a manual check). |
 
 Existing outreach history (attempts, outcomes, notes, gatekeeper, decision maker and so on) is carried over unchanged. The
 original phone is kept in `phone_on_file`. When it differs from Google's, `verify_note` says so.

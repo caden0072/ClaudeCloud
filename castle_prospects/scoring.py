@@ -79,8 +79,37 @@ NO_FIT_TYPES = {
 }
 
 
+# Places that look like a talk room but aren't. Checked before any Tier A rule.
+EXCLUDE_NAME_RULES = [
+    (r"\bfitness court\b", "Outdoor fitness court (no host)"),
+    (r"\b(day|med|medical) spa\b", "Day spa"),
+    (r"\b(sober|rehab|detox|addiction|halfway house|recovery (home|residence|house|center|centre|ctr)|"
+     r"treatment (center|centre|ctr)|transitional (living|housing|home))\b", "Sober living / recovery home"),
+]
+# Big gyms carry a secondary "spa" type for their saunas, so only the primary type counts.
+SPA_PRIMARY_TYPES = {"spa", "day_spa", "massage_spa"}
+
+# Tier A priority (1 = call first). Categories not listed rank last.
+PRIORITY = {"Gym / fitness": 1, "Yoga": 1, "Pilates": 1, "Church / faith": 2, "Civic club": 3}
+PRIORITY_OTHER = 4
+
+# Google has no place type for civic clubs or chambers, so a name match is the
+# strongest evidence available; these stay Tier A instead of going to review.
+NAME_ONLY_OK = {"Civic club"}
+
+# "X Independent Living" with no senior-care type on Google is often sober living.
+SENIOR_TYPES = TIER_A_RULES[-1][1]
+
+
+def priority(category):
+    return PRIORITY.get(category, PRIORITY_OTHER)
+
+
 def classify(name, place):
     """Return (tier, category, no_fit_reason). place may be None (unverified).
+
+    tier is "A", "Review" (Tier A only by name — needs a human look), "B", or ""
+    (excluded; no_fit_reason says why).
 
     Tier A is decided from Google's place types first, then the business name.
     The legacy CSV 'type' column is ignored — it is unreliable (e.g. Lowe's and
@@ -92,16 +121,33 @@ def classify(name, place):
     gname = ((place or {}).get("displayName") or {}).get("text", "")
     text = f"{name} {gname}".lower()
 
+    for pattern, reason in EXCLUDE_NAME_RULES:
+        if re.search(pattern, text):
+            return "", label or primary, reason
+    if primary in SPA_PRIMARY_TYPES:
+        return "", label or primary, "Day spa"
+
     for category, a_types, pattern in TIER_A_RULES:
         if types & a_types:
             return "A", category, ""
     if primary not in NOT_A_PRIMARY_TYPES:
         for category, _a_types, pattern in TIER_A_RULES:
             if re.search(pattern, text):
-                return "A", category, ""
+                if category in NAME_ONLY_OK:
+                    return "A", category, ""
+                return "Review", category, ""
 
     if place is not None:
         specific = types - {"point_of_interest", "establishment"}
         if primary in NO_FIT_TYPES or (specific and specific <= NO_FIT_TYPES):
             return "", label or primary, f"No audience fit ({label or primary or 'address only'})"
     return "B", label or primary or "Employer", ""
+
+
+def review_note(name, place, category):
+    """Why a name-only match needs a human look."""
+    types = set((place or {}).get("types") or [])
+    if re.search(r"independent living", f"{name}".lower()) and not types & SENIOR_TYPES:
+        return "Needs review: 'independent living' with no senior-care type on Google — may be sober living"
+    kind = ((place or {}).get("primaryTypeDisplayName") or {}).get("text", "") or "unverified"
+    return f"Needs review: matched {category} by name only (Google lists it as {kind})"
