@@ -57,10 +57,6 @@ TIER_A_RULES = [
      r"\b(rotary|kiwanis|lions club|elks|moose lodge|american legion|vfw|"
      r"veterans of foreign wars|chamber of commerce|optimist club|soroptimist|"
      r"woman'?s club|women'?s club|masonic|lodge no|exchange club)\b"),
-    ("Senior community", {"senior_citizen_center", "assisted_living_facility", "retirement_home",
-                          "nursing_home"},
-     r"\b(senior (living|center|community|apartments|village)|retirement|assisted living|"
-     r"memory care|55\+|active adult|independent living)\b"),
 ]
 
 # Retail/food that matched a fitness word only by accident (e.g. "Fitness equipment store").
@@ -79,8 +75,18 @@ NO_FIT_TYPES = {
 }
 
 
-# Places that look like a talk room but aren't. Checked before any Tier A rule.
+# Senior communities are not pursued (Caden, 2026-09-28).
+SENIOR_TYPES = {"senior_citizen_center", "assisted_living_facility", "retirement_home", "nursing_home"}
+R_SENIOR = "Senior community (not pursued)"
+
+# Places that look like a talk room but aren't, or that we don't pursue.
+# Checked before any Tier A rule.
 EXCLUDE_NAME_RULES = [
+    (r"\b(senior (living|center|centre|community|apartments|village|care|housing)|assisted living|"
+     r"memory care|retirement (community|home|village|living)|active adult|independent living|"
+     r"nursing (home|center|centre)|skilled nursing|convalescent)\b", R_SENIOR),
+    # Hospice and home-care listings are very often fake (see the do-not-contact list).
+    (r"\b(hospice|palliative|home ?care|home health|in-home|caregivers?)\b", "Hospice / home care (often fake listings)"),
     (r"\bfitness court\b", "Outdoor fitness court (no host)"),
     (r"\b(day|med|medical) spa\b", "Day spa"),
     (r"\b(sober|rehab|detox|addiction|halfway house|recovery (home|residence|house|center|centre|ctr)|"
@@ -96,9 +102,6 @@ PRIORITY_OTHER = 4
 # Google has no place type for civic clubs or chambers, so a name match is the
 # strongest evidence available; these stay Tier A instead of going to review.
 NAME_ONLY_OK = {"Civic club"}
-
-# "X Independent Living" with no senior-care type on Google is often sober living.
-SENIOR_TYPES = TIER_A_RULES[-1][1]
 
 # Trade businesses filed under a talk-room type (e.g. roofers listed as "yoga
 # studio") are Maps spam. Only applied when a Tier A type matched.
@@ -128,6 +131,8 @@ def classify(name, place):
     for pattern, reason in EXCLUDE_NAME_RULES:
         if re.search(pattern, text):
             return "", label or primary, reason
+    if types & SENIOR_TYPES:
+        return "", label or primary, R_SENIOR
     if primary in SPA_PRIMARY_TYPES:
         return "", label or primary, "Day spa"
 
@@ -152,8 +157,5 @@ def classify(name, place):
 
 def review_note(name, place, category):
     """Why a name-only match needs a human look."""
-    types = set((place or {}).get("types") or [])
-    if re.search(r"independent living", f"{name}".lower()) and not types & SENIOR_TYPES:
-        return "Needs review: 'independent living' with no senior-care type on Google — may be sober living"
     kind = ((place or {}).get("primaryTypeDisplayName") or {}).get("text", "") or "unverified"
     return f"Needs review: matched {category} by name only (Google lists it as {kind})"

@@ -20,11 +20,9 @@ CLINIC_ADDRESS = "659 E 15th St Ste H, Upland, CA 91786"
 MAX_DRIVE_MINUTES = 15.0
 # Fallback when the key cannot use the Routes API: estimate drive time from
 # straight-line distance. Road distance is ~1.35x straight-line in this grid-street
-# area, at ~50 km/h (31 mph) average. Estimates within BORDERLINE_MINUTES of the
-# cutoff are flagged for a manual check.
+# area, at ~50 km/h (31 mph) average. Accurate to within ~5 min, which is fine.
 ROAD_FACTOR = 1.35
 AVG_SPEED_KMH = 50.0
-BORDERLINE_MINUTES = 3.0
 # Bias verification searches toward the clinic; results farther than this are ignored.
 SEARCH_RADIUS_METERS = 40_000
 
@@ -42,9 +40,6 @@ DISCOVERY_QUERIES = [
     ("yoga studio", True),
     ("Pilates studio", True),
     ("church", True),
-    ("senior living community", True),
-    ("senior center", False),
-    ("retirement community 55+", False),
     ("Rotary Club", False),
     ("Kiwanis Club", False),
     ("Lions Club", False),

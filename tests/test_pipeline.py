@@ -105,6 +105,11 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(classify("New Dawn Sober Living", {"types": ["service"], "primaryType": "service"})[0], "")
         self.assertEqual(classify("SSF Roofers Inc Us", {"types": ["yoga_studio"], "primaryType": "yoga_studio"})[0], "")
         self.assertEqual(classify("Acme Roofing", {"types": ["roofing_contractor"], "primaryType": "roofing_contractor"})[0], "B")
+        self.assertEqual(classify("Villa Serena Senior Apartments", {"types": ["apartment_complex"], "primaryType": "apartment_complex"})[2],
+                         "Senior community (not pursued)")
+        self.assertEqual(classify("Joystar", {"types": ["assisted_living_facility"], "primaryType": "assisted_living_facility"})[0], "")
+        self.assertEqual(classify("Bright Haven Hospice", {"types": ["health"], "primaryType": "health"})[0], "")
+        self.assertEqual(classify("Retirement Planning Group", {"types": ["financial_planner"], "primaryType": "financial_planner"})[0], "B")
         # big gyms carry a secondary "spa" type for their saunas
         self.assertEqual(classify("Planet Fitness", {"types": ["gym", "spa"], "primaryType": "gym"})[0], "A")
 

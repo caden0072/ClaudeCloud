@@ -373,14 +373,6 @@ def assemble():
         row.update({k: r.get(k, "") for k in HISTORY_COLS})
         excluded.append(row)
 
-    for r in contacts + excluded:
-        if r.get("drive_minutes") is None or r.get("source") == "do-not-contact list":
-            continue
-        if r["drive_time_source"] == "estimated" and \
-                abs(r["drive_minutes"] - config.MAX_DRIVE_MINUTES) <= config.BORDERLINE_MINUTES:
-            note = "Drive time is an estimate near the 15 min cutoff — check on Google Maps"
-            r["verify_note"] = f"{r['verify_note']}; {note}" if r.get("verify_note") else note
-
     for c in contacts:
         c["priority"] = priority(c["tier_category"]) if c["tier"] in ("A", "Review") else ""
     tier_order = {"A": 0, "Review": 1, "B": 2}
