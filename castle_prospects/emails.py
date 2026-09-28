@@ -11,7 +11,7 @@ from . import config
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}")
 CONTACT_LINK_RE = re.compile(r'href=["\']([^"\']*(contact|about|connect|visit|staff|team)[^"\']*)["\']', re.I)
-JUNK_DOMAINS = ("sentry", "wixpress", "example.com", "domain.com", "email.com", "yourdomain",
+JUNK_DOMAINS = ("revize.com", "emailservices.com", "sentry", "wixpress", "example.com", "domain.com", "email.com", "yourdomain",
                 "godaddy", "squarespace", "wix.com", "schema.org", "w3.org", "mysite")
 JUNK_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".css", ".js")
 PREFERRED_PREFIX = ("info", "contact", "office", "hello", "admin", "events", "hr", "frontdesk",
@@ -19,7 +19,9 @@ PREFERRED_PREFIX = ("info", "contact", "office", "hello", "admin", "events", "hr
 # Addresses nobody should cold-email about an event.
 JUNK_LOCAL_RE = re.compile(r"^(cpo|privacy|legal|dpo|compliance|careers?|jobs|recruit\w*|no-?reply|"
                            r"do-?not-?reply|webmaster|abuse|press|media|accessibility|ada|unsubscribe|"
-                           r"billing|accounting|payroll|ar|ap)$")
+                           r"billing|accounting|payroll|ar|ap|aphelp|webpageupdate\w*)$")
+# Web designer credits ("Website by jane@studio.com") sit right after words like these.
+CREDIT_RE = re.compile(r"(design(ed)?|develop(ed)?|powered|website|site|built|created|hosted|managed)\s+(by|with)\b", re.I)
 FALLBACK_PATHS = ["/contact", "/contact-us", "/about", "/about-us"]
 
 
@@ -41,10 +43,14 @@ def _fetch(session, url, cache_dir):
 
 def _emails_in(page):
     page = html.unescape(page).replace("%40", "@").replace("[at]", "@").replace("(at)", "@")
+    # Escaped slashes and pipes ("\u002f", "%7c") glue junk onto the front of addresses.
+    page = re.sub(r"\\?u00[0-9a-f]{2}|%[0-9a-f]{2}", " ", page, flags=re.I)
     found = []
-    for m in EMAIL_RE.findall(page):
-        e = m.strip(".").lower()
+    for m in EMAIL_RE.finditer(page):
+        e = m.group().strip(".").lower()
         if e.endswith(JUNK_EXT) or any(j in e for j in JUNK_DOMAINS) or JUNK_LOCAL_RE.match(e.partition("@")[0]):
+            continue
+        if CREDIT_RE.search(page[max(0, m.start() - 150):m.start()]):
             continue
         if e not in found:
             found.append(e)

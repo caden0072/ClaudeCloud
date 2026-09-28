@@ -143,3 +143,9 @@ class EmailFilterTest(unittest.TestCase):
         page = "cpo@24hourfit.com privacy@x.com info@gym.com careers@gym.com"
         self.assertEqual(_emails_in(page), ["info@gym.com"])
 
+    def test_skips_designer_credits_and_escaped_junk(self):
+        from castle_prospects.emails import _emails_in
+        page = ('<p>Email: office@church.org</p> "\\u002fpastor@church.org"'
+                '<footer>Website designed by <a href="mailto:hello@studio.net">hello@studio.net</a></footer>')
+        self.assertEqual(_emails_in(page), ["office@church.org", "pastor@church.org"])
+
