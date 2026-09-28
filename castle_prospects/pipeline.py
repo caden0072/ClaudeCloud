@@ -256,14 +256,20 @@ def cmd_emails(_args):
     emails = load_json("emails.json", default={})
     todo = [c for c in contacts if c["website"] and not c["email"] and c["place_id"] not in emails]
     print(f"Checking {len(todo)} websites for a contact email")
+    failed = 0
     for i, c in enumerate(todo, 1):
         email, source = find_email(c["website"])
+        if email is None:
+            failed += 1   # network failure: leave it out so the next run retries
+            continue
         emails[c["place_id"]] = {"email": email, "source": source}
         if i % 25 == 0:
             save_json("emails.json", emails)
             print(f"  {i}/{len(todo)}")
     save_json("emails.json", emails)
     print(f"Emails found: {sum(1 for e in emails.values() if e['email'])}/{len(emails)}")
+    if failed:
+        print(f"  {failed} websites could not be fetched (network blocked?) — re-run `emails` to retry them")
 
 
 # --- step: build ---------------------------------------------------------------

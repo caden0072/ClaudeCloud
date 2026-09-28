@@ -26,9 +26,10 @@ def _fetch(session, url, cache_dir):
         return path.read_text(errors="ignore")
     try:
         resp = session.get(url, timeout=15, allow_redirects=True)
-        text = resp.text if resp.ok and "html" in resp.headers.get("content-type", "") else ""
     except requests.RequestException:
-        text = ""
+        # Network/proxy failures are not cached, so a later run retries them.
+        return None
+    text = resp.text if resp.ok and "html" in resp.headers.get("content-type", "") else ""
     path.write_text(text)
     time.sleep(0.5)  # be polite
     return text
@@ -55,7 +56,7 @@ def _rank(emails, site_domain):
 
 
 def find_email(website):
-    """Return (email, source_url) or ("", note)."""
+    """Return (email, source_url), ("", note), or (None, note) if the site could not be fetched."""
     if not website:
         return "", "no website"
     cache_dir = config.CACHE_DIR / "web"
@@ -65,6 +66,8 @@ def find_email(website):
     domain = urlparse(website).netloc.lower().removeprefix("www.")
 
     home = _fetch(session, website, cache_dir)
+    if home is None:
+        return None, "fetch failed (network)"
     if not home:
         return "", "website unreachable"
     found = _emails_in(home)
@@ -78,7 +81,7 @@ def find_email(website):
             links.append(full)
     links += [urljoin(website, p) for p in FALLBACK_PATHS if urljoin(website, p) not in links]
     for url in links[:5]:
-        found = _emails_in(_fetch(session, url, cache_dir))
+        found = _emails_in(_fetch(session, url, cache_dir) or "")
         if found:
             return _rank(found, domain)[0], url
     return "", "no email listed"
