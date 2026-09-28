@@ -1,0 +1,10 @@
+# Secrets
+.env
+
+# Client data and generated output stay out of the repo
+data/
+output/
+cache/
+
+__pycache__/
+*.pyc
