@@ -22,6 +22,10 @@ JUNK_LOCAL_RE = re.compile(r"^(cpo|privacy|legal|dpo|compliance|careers?|jobs|re
                            r"billing|accounting|payroll|ar|ap|aphelp|webpageupdate\w*)$")
 # Web designer credits ("Website by jane@studio.com") sit right after words like these.
 CREDIT_RE = re.compile(r"(design(ed)?|develop(ed)?|powered|website|site|built|created|hosted|managed)\s+(by|with)\b", re.I)
+# WordPress page settings expose the site builder's address as "admin_email".
+ADMIN_RE = re.compile(r"admin_email", re.I)
+# Stylesheets and <meta> tags hold font-license and author emails, never a contact.
+HIDDEN_RE = re.compile(r"<style\b.*?</style>|<meta\b[^>]*>", re.I | re.S)
 FALLBACK_PATHS = ["/contact", "/contact-us", "/about", "/about-us"]
 
 
@@ -42,6 +46,7 @@ def _fetch(session, url, cache_dir):
 
 
 def _emails_in(page):
+    page = HIDDEN_RE.sub(" ", page)
     page = html.unescape(page).replace("%40", "@").replace("[at]", "@").replace("(at)", "@")
     # Escaped slashes and pipes ("\u002f", "%7c") glue junk onto the front of addresses.
     page = re.sub(r"\\?u00[0-9a-f]{2}|%[0-9a-f]{2}", " ", page, flags=re.I)
@@ -50,7 +55,8 @@ def _emails_in(page):
         e = m.group().strip(".").lower()
         if e.endswith(JUNK_EXT) or any(j in e for j in JUNK_DOMAINS) or JUNK_LOCAL_RE.match(e.partition("@")[0]):
             continue
-        if CREDIT_RE.search(page[max(0, m.start() - 150):m.start()]):
+        if CREDIT_RE.search(page[max(0, m.start() - 150):m.start()]) or \
+                ADMIN_RE.search(page[max(0, m.start() - 20):m.start()]):
             continue
         if e not in found:
             found.append(e)

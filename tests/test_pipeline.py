@@ -149,3 +149,10 @@ class EmailFilterTest(unittest.TestCase):
                 '<footer>Website designed by <a href="mailto:hello@studio.net">hello@studio.net</a></footer>')
         self.assertEqual(_emails_in(page), ["office@church.org", "pastor@church.org"])
 
+    def test_skips_font_license_and_wordpress_admin(self):
+        from castle_prospects.emails import _emails_in
+        page = ('<style>/* Copyright (c) 2014, Micah Rich (micah@micahrich.com) */</style>'
+                '<meta name="author" content="dev@agency.com"><script>{"admin_email":"web@agency.net"}</script>'
+                '<p>info@gym.com</p>')
+        self.assertEqual(_emails_in(page), ["info@gym.com"])
+
