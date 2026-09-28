@@ -16,6 +16,10 @@ JUNK_DOMAINS = ("sentry", "wixpress", "example.com", "domain.com", "email.com", 
 JUNK_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".css", ".js")
 PREFERRED_PREFIX = ("info", "contact", "office", "hello", "admin", "events", "hr", "frontdesk",
                     "membership", "manager", "church", "welcome")
+# Addresses nobody should cold-email about an event.
+JUNK_LOCAL_RE = re.compile(r"^(cpo|privacy|legal|dpo|compliance|careers?|jobs|recruit\w*|no-?reply|"
+                           r"do-?not-?reply|webmaster|abuse|press|media|accessibility|ada|unsubscribe|"
+                           r"billing|accounting|payroll|ar|ap)$")
 FALLBACK_PATHS = ["/contact", "/contact-us", "/about", "/about-us"]
 
 
@@ -40,7 +44,7 @@ def _emails_in(page):
     found = []
     for m in EMAIL_RE.findall(page):
         e = m.strip(".").lower()
-        if e.endswith(JUNK_EXT) or any(j in e for j in JUNK_DOMAINS):
+        if e.endswith(JUNK_EXT) or any(j in e for j in JUNK_DOMAINS) or JUNK_LOCAL_RE.match(e.partition("@")[0]):
             continue
         if e not in found:
             found.append(e)

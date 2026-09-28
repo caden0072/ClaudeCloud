@@ -136,3 +136,10 @@ class DriveFallbackTest(unittest.TestCase):
         self.assertEqual(client.drive_source, "estimated")
         self.assertAlmostEqual(mins[0], 11.1 * config.ROAD_FACTOR / config.AVG_SPEED_KMH * 60, delta=0.3)
 
+
+class EmailFilterTest(unittest.TestCase):
+    def test_skips_legal_and_privacy_addresses(self):
+        from castle_prospects.emails import _emails_in
+        page = "cpo@24hourfit.com privacy@x.com info@gym.com careers@gym.com"
+        self.assertEqual(_emails_in(page), ["info@gym.com"])
+
