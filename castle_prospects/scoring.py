@@ -100,6 +100,10 @@ NAME_ONLY_OK = {"Civic club"}
 # "X Independent Living" with no senior-care type on Google is often sober living.
 SENIOR_TYPES = TIER_A_RULES[-1][1]
 
+# Trade businesses filed under a talk-room type (e.g. roofers listed as "yoga
+# studio") are Maps spam. Only applied when a Tier A type matched.
+SPAM_NAME = r"\b(roof(s|er|ers|ing)?|plumb(er|ers|ing)|hvac|locksmiths?|garage doors?|pest control|towing|electricians?)\b"
+
 
 def priority(category):
     return PRIORITY.get(category, PRIORITY_OTHER)
@@ -129,6 +133,8 @@ def classify(name, place):
 
     for category, a_types, pattern in TIER_A_RULES:
         if types & a_types:
+            if re.search(SPAM_NAME, text):
+                return "", label or primary, "Likely spam listing (trade business under a talk-room category)"
             return "A", category, ""
     if primary not in NOT_A_PRIMARY_TYPES:
         for category, _a_types, pattern in TIER_A_RULES:

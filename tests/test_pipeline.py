@@ -103,6 +103,8 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(classify("Fitness Court at Central Park", gym)[0], "")
         self.assertEqual(classify("On Cloud Nine Day Spa", {"types": ["spa", "yoga_studio"], "primaryType": "spa"})[0], "")
         self.assertEqual(classify("New Dawn Sober Living", {"types": ["service"], "primaryType": "service"})[0], "")
+        self.assertEqual(classify("SSF Roofers Inc Us", {"types": ["yoga_studio"], "primaryType": "yoga_studio"})[0], "")
+        self.assertEqual(classify("Acme Roofing", {"types": ["roofing_contractor"], "primaryType": "roofing_contractor"})[0], "B")
         # big gyms carry a secondary "spa" type for their saunas
         self.assertEqual(classify("Planet Fitness", {"types": ["gym", "spa"], "primaryType": "gym"})[0], "A")
 
