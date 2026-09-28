@@ -180,7 +180,7 @@ def cmd_verify(args):
     drives = client.drive_minutes(origin, [latlng(o["place"]) for o in matched])
     for o, d in zip(matched, drives):
         o["drive_minutes"] = d
-    save_json("verified.json", {"origin": origin, "rows": out})
+    save_json("verified.json", {"origin": origin, "drive_source": client.drive_source, "rows": out})
     print(f"Matched {len(matched)}/{len(out)} records. API calls: {client.calls}")
 
 
@@ -198,6 +198,8 @@ def cmd_discover(args):
         digits10(o["place"].get("nationalPhoneNumber")) for o in verified["rows"] if o["place"]}
     unverified_names = {clean_name(o["record"]["business"]) for o in verified["rows"] if not o["place"]}
 
+    if verified.get("drive_source") == "estimated":
+        client.drive_source = "estimated"
     # ~15 min of driving rarely exceeds ~20 km; drive time is checked precisely below.
     rect = {"low": {"latitude": origin[0] - 0.19, "longitude": origin[1] - 0.23},
             "high": {"latitude": origin[0] + 0.19, "longitude": origin[1] + 0.23}}
@@ -238,6 +240,8 @@ def cmd_discover(args):
             new.append(c)
         else:
             skipped["over 15 min drive"] += 1
+    for c in new:
+        c["drive_source"] = client.drive_source
     save_json("discovered.json", new)
     print(f"New Tier A organizations: {len(new)}  Skipped: {dict(skipped)}  API calls: {client.calls}")
 
@@ -299,7 +303,9 @@ def assemble():
             row.update({"phone": pretty_phone(rec["phone"]), "address": rec.get("address", ""),
                         "city": rec.get("city", ""), "website": rec.get("website", ""), "place_id": ""})
         row.update({"email": rec.get("email", ""), "email_source": "existing list" if rec.get("email") else "",
-                    "drive_minutes": o["drive_minutes"], "verified_by": o["method"] or "not found",
+                    "drive_minutes": o["drive_minutes"],
+                    "drive_time_source": verified.get("drive_source", "google") if o["drive_minutes"] is not None else "",
+                    "verified_by": o["method"] or "not found",
                     "phone_on_file": pretty_phone(rec["phone"]), "verify_note": ""})
         if place and digits10(rec["phone"]) != digits10(place.get("nationalPhoneNumber")):
             row["verify_note"] = "Phone on file differs from Google — use Google number"
@@ -335,7 +341,7 @@ def assemble():
         row = {"business": (place.get("displayName") or {}).get("text", ""), "source": f"new {today}"}
         row.update(place_fields(place))
         row.update({"tier": "A", "tier_category": d["category"], "drive_minutes": d["drive_minutes"],
-                    "email": "", "email_source": "", "verified_by": "discovery search",
+                    "drive_time_source": d.get("drive_source", "google"), "email": "", "email_source": "", "verified_by": "discovery search",
                     "phone_on_file": "", "verify_note": ""})
         row.update({k: "" for k in HISTORY_COLS})
         row.update({"status": "prospect", "attempts": "0", "last_outcome": "Never contacted", "events_booked": "0"})
@@ -354,20 +360,28 @@ def assemble():
         row.update({k: r.get(k, "") for k in HISTORY_COLS})
         excluded.append(row)
 
+    for r in contacts + excluded:
+        if r.get("drive_minutes") is None or r.get("source") == "do-not-contact list":
+            continue
+        if r["drive_time_source"] == "estimated" and \
+                abs(r["drive_minutes"] - config.MAX_DRIVE_MINUTES) <= config.BORDERLINE_MINUTES:
+            note = "Drive time is an estimate near the 15 min cutoff — check on Google Maps"
+            r["verify_note"] = f"{r['verify_note']}; {note}" if r.get("verify_note") else note
+
     contacts.sort(key=lambda r: (r["tier"], r.get("drive_minutes") or 99, r["business"].lower()))
     return contacts, excluded
 
 
 CONTACT_COLS = [
     "tier", "tier_category", "business", "google_name", "category", "address", "city", "phone",
-    "email", "website", "drive_minutes", "status", "owner", "last_contacted", "last_outcome",
+    "email", "website", "drive_minutes", "drive_time_source", "status", "owner", "last_contacted", "last_outcome",
     "next_step_due", "active_cadence", "attempts", "first_contacted", "last_worked_by",
     "gatekeeper", "decision_maker", "info_sent_to", "last_note", "events_booked",
     "last_event_date", "shares_phone_with_another", "type", "source", "verified_by",
     "verify_note", "phone_on_file", "email_source", "business_status", "place_id", "google_maps_url",
 ]
 EXCLUDED_COLS = ["excluded_reason", "reason_detail", "business", "google_name", "category", "address",
-                 "city", "phone", "email", "website", "drive_minutes", "business_status"] + \
+                 "city", "phone", "email", "website", "drive_minutes", "drive_time_source", "business_status"] + \
     [c for c in CONTACT_COLS if c in HISTORY_COLS] + ["source", "verified_by", "phone_on_file", "place_id"]
 
 DAILY_LOG_COLS = ["date", "team_member", "business", "contact_name", "contact_role", "channel",

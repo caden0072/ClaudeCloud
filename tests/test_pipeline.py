@@ -36,6 +36,7 @@ PLACES = {
 class FakeClient:
     def __init__(self, *a, **k):
         self.calls = {}
+        self.drive_source = "google"
 
     def geocode_origin(self, _addr):
         return ORIGIN, "659 E 15th St, Upland"
@@ -103,3 +104,14 @@ class ClassifyTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DriveFallbackTest(unittest.TestCase):
+    def test_blocked_routes_api_falls_back_to_estimate(self):
+        client = gapi.GoogleClient(api_key="x")
+        with mock.patch.object(client, "_route_matrix", side_effect=gapi.ServiceBlocked("routes")):
+            # ~0.1 degree of latitude north is ~11.1 km straight-line
+            mins = client.drive_minutes(ORIGIN, [(ORIGIN[0] + 0.1, ORIGIN[1])])
+        self.assertEqual(client.drive_source, "estimated")
+        self.assertAlmostEqual(mins[0], 11.1 * config.ROAD_FACTOR / config.AVG_SPEED_KMH * 60, delta=0.3)
+

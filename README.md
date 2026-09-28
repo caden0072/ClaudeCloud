@@ -43,9 +43,14 @@ The output goes to `output/castle-outreach-list-<date>.xlsx`, with the tier and 
 |---|---|
 | Tier A | Gyms, CrossFit, yoga, Pilates, churches, civic clubs, senior communities. Decided from Google place types first, then the business name. The legacy CSV `type` column is ignored because it is unreliable. |
 | Tier B | Any other open business with a physical location, meaning an employer with staff on-site. |
-| Excluded | On the do-not-contact list, closed on Google, over 15 min drive (traffic-unaware), no audience fit (address only, parking, storage, apartments and similar), or not found on Google (flagged for a manual check). |
+| Excluded | On the do-not-contact list, closed on Google, over 15 min drive (traffic-unaware; see below), no audience fit (address only, parking, storage, apartments and similar), or not found on Google (flagged for a manual check). |
 
 Existing outreach history (attempts, outcomes, notes, gatekeeper, decision maker and so on) is carried over unchanged. The
 original phone is kept in `phone_on_file`. When it differs from Google's, `verify_note` says so.
+
+Drive time comes from the Google Routes API. If the key isn't allowed to use it, the pipeline
+estimates drive time from straight-line distance instead (`ROAD_FACTOR` and `AVG_SPEED_KMH` in
+`config.py`). The `drive_time_source` column says which was used, and estimates within 3 minutes of
+the cutoff get a note to check on Google Maps.
 
 Tests: `python -m unittest discover tests`

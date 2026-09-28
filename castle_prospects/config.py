@@ -18,6 +18,13 @@ API_KEY_VAR = "GOOGLE_MAPS_API_KEY"
 
 CLINIC_ADDRESS = "659 E 15th St Ste H, Upland, CA 91786"
 MAX_DRIVE_MINUTES = 15.0
+# Fallback when the key cannot use the Routes API: estimate drive time from
+# straight-line distance. Road distance is ~1.35x straight-line in this grid-street
+# area, at ~50 km/h (31 mph) average. Estimates within BORDERLINE_MINUTES of the
+# cutoff are flagged for a manual check.
+ROAD_FACTOR = 1.35
+AVG_SPEED_KMH = 50.0
+BORDERLINE_MINUTES = 3.0
 # Bias verification searches toward the clinic; results farther than this are ignored.
 SEARCH_RADIUS_METERS = 40_000
 

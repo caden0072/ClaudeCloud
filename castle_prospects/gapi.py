@@ -6,6 +6,7 @@ ignore the cache.
 """
 import hashlib
 import json
+import math
 import os
 import time
 
@@ -35,6 +36,18 @@ def load_api_key():
     )
 
 
+class ServiceBlocked(RuntimeError):
+    """The API key is not allowed to call this Google API."""
+
+
+def estimate_drive_minutes(origin, dest):
+    """Straight-line distance x road factor at an average speed (see config)."""
+    lat1, lon1, lat2, lon2 = map(math.radians, (*origin, *dest))
+    h = math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+    km = 12742 * math.asin(math.sqrt(h))
+    return round(km * config.ROAD_FACTOR / config.AVG_SPEED_KMH * 60, 1)
+
+
 class GoogleClient:
     def __init__(self, api_key=None, refresh=False):
         self.api_key = api_key or load_api_key()
@@ -43,6 +56,7 @@ class GoogleClient:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.session = requests.Session()
         self.calls = {"text_search": 0, "route_elements": 0, "cache_hits": 0}
+        self.drive_source = "google"   # becomes "estimated" if the Routes API is blocked
 
     def _post(self, url, body, field_mask):
         key = hashlib.sha256(json.dumps([url, body, field_mask], sort_keys=True).encode()).hexdigest()
@@ -61,6 +75,8 @@ class GoogleClient:
                 time.sleep(2 ** attempt)
                 continue
             break
+        if resp.status_code == 403 and "API_KEY_SERVICE_BLOCKED" in resp.text:
+            raise ServiceBlocked(url)
         if resp.status_code != 200:
             # Error bodies from Google never echo the key, so they are safe to show.
             raise RuntimeError(f"Google API error {resp.status_code}: {resp.text[:500]}")
@@ -99,7 +115,19 @@ class GoogleClient:
         """Drive time in minutes from origin to each (lat, lng); None if no route.
 
         Uses TRAFFIC_UNAWARE (typical free-flow time), which is stable between runs.
+        If the key cannot use the Routes API, falls back to estimate_drive_minutes
+        and sets self.drive_source to "estimated".
         """
+        if self.drive_source == "estimated":
+            return [estimate_drive_minutes(origin, d) for d in destinations]
+        try:
+            return self._route_matrix(origin, destinations, batch)
+        except ServiceBlocked:
+            print("  Routes API is blocked for this key; estimating drive time from distance instead")
+            self.drive_source = "estimated"
+            return [estimate_drive_minutes(origin, d) for d in destinations]
+
+    def _route_matrix(self, origin, destinations, batch):
         results = [None] * len(destinations)
         for start in range(0, len(destinations), batch):
             chunk = destinations[start:start + batch]
